@@ -51,6 +51,22 @@ void ServerManager::saveList() {
     }
 }
 
+void ServerManager::printParsedLinkParts(const std::string& bareLink) {
+    LinkData linkData = linkParser.getParsedLink(bareLink);
+    std::cout << "Uuid: " << linkData.uuid << '\n';
+    std::cout << "Host: " << linkData.host << '\n';
+    std::cout << "Port: " << linkData.port << '\n';
+    std::cout << "Encryption: " << linkData.encryption << '\n';
+    std::cout << "Flow: " << linkData.flow << '\n';
+    std::cout << "Security: " << linkData.security << '\n';
+    std::cout << "Sni: " << linkData.sni << '\n';
+    std::cout << "Fingerprint: " << linkData.fingerprint << '\n';
+    std::cout << "Public Key: " << linkData.publicKey << '\n';
+    std::cout << "Short ID: " << linkData.shortId << '\n';
+    std::cout << "Transport: " << linkData.transport << '\n';
+    std::cout << '\n' << bareLink << '\n';
+}
+
 void ServerManager::listServers() {
     loadList();
     if (serversList.empty()) {
