@@ -41,6 +41,10 @@ void ServerManager::saveList() {
 
 void ServerManager::listServers() {
     loadList();
+    if (serversList.empty()) {
+        std::cout << "There is no servers in the list\n";
+        return;
+    }
     for (size_t i = 0; i < serversList.size(); i++) {
         std::cout << i + 1 << ". " << serversList[i] << '\n';
     }
@@ -61,8 +65,9 @@ void ServerManager::addServer(const std::string& serverName, const std::string& 
 void ServerManager::deleteServer(int serverNum) {
     loadList();
     std::string serverName = serversList[serverNum - 1];
+
     try {
-        if (std::filesystem::remove(serverName + ".txt")) {
+        if (std::filesystem::remove("data/" + serverName + ".txt")) {
             std::cout << "Server " << serverName << " removed\n";
         } else {
             std::cout << "Server don't found\n";
@@ -73,3 +78,13 @@ void ServerManager::deleteServer(int serverNum) {
     serversList.erase(serversList.begin() + serverNum - 1);
     saveList();
 }
+
+/*
+void ServerManager::resizeList() {
+    for (size_t i = 0; i < serversList.size() - 1; i++) {
+        if (serversList[i].empty()) {
+            serversList[i] = serversList[i++];
+        }
+    }
+}
+*/

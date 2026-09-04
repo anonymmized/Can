@@ -8,6 +8,9 @@ int main(int argc, char** argv) {
         serverManager.addServer(std::string(argv[2]), std::string(argv[3]));
     } else if (argc == 3 && std::string(argv[1]) == "delete") {
         serverManager.deleteServer(std::stoi(std::string(argv[2])));
+    } else if (argc == 2 && std::string(argv[1]) == "list") {
+        serverManager.listServers();
+        return 0;
     }
     serverManager.listServers();
     return 0;
