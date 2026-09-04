@@ -5,34 +5,46 @@
 #include <fstream>
 #include <iostream>
 #include <filesystem>
+#include <stdexcept>
+
+bool ServerManager::listCreated(const std::filesystem::path& listPath) {
+    return std::filesystem::is_regular_file(listPath);
+}
+
+void ServerManager::createList(const std::filesystem::path& listPath) {
+    std::filesystem::create_directories(listPath.parent_path());
+    std::ofstream newFile(listPath);
+    if (!newFile.is_open()) {
+        throw std::runtime_error("Couldn't create list file: " + listPath.string());
+    }
+}
 
 void ServerManager::loadList() {
     serversList.clear();
     std::filesystem::path listPath = LIST_PATH;
-    std::filesystem::create_directories(listPath.parent_path());
-    if (!std::filesystem::exists(listPath)) {
-        std::ofstream newFile(listPath);
-        if (!newFile.is_open()) {
-            std::cerr << "Couldn't create list file\n";
-        }
-        return;
+    if (!listCreated(listPath)) {
+        createList(listPath);
     }
+
     std::ifstream fileWithList(listPath);
     if (!fileWithList.is_open()) {
-        std::cerr << "File with list wasn't opened\n";
-        return;
+        throw std::runtime_error("Couldn't open list file: " + listPath.string());
     }
+
     std::string line;
     while (std::getline(fileWithList, line)) {
         serversList.push_back(line);
+    }
+
+    if (fileWithList.bad()) {
+        throw std::runtime_error("Error while reading list file: " + listPath.string());
     }
 }
 
 void ServerManager::saveList() {
     std::ofstream fileToSave(LIST_PATH, std::ios::trunc);
     if (!fileToSave.is_open()) {
-        std::cerr << "File to save wasn't opened\n";
-        return;
+        throw std::runtime_error("Couldn't open list file for writing");
     }
     for (const auto& server : serversList) {
         fileToSave << server << '\n';
@@ -45,16 +57,15 @@ void ServerManager::listServers() {
         std::cout << "There is no servers in the list\n";
         return;
     }
-    for (size_t i = 0; i < serversList.size(); i++) {
-        std::cout << i + 1 << ". " << serversList[i] << '\n';
+    for (size_t serverIndex = 0; serverIndex < serversList.size(); serverIndex++) {
+        std::cout << serverIndex + 1 << ". " << serversList[serverIndex] << '\n';
     }
 }
 
 void ServerManager::addServer(const std::string& serverName, const std::string& bareLink) {
     std::ofstream fileToCreate("data/" + serverName + ".txt", std::ios::trunc);
     if (!fileToCreate.is_open()) {
-        std::cerr << "File to create wasn't opened\n";
-        return;
+        throw std::runtime_error("Couldn't open list file to add server");
     }
     fileToCreate << serverName << " - " << bareLink;
     loadList();
@@ -64,6 +75,9 @@ void ServerManager::addServer(const std::string& serverName, const std::string& 
 
 void ServerManager::deleteServer(int serverNum) {
     loadList();
+    if (serverNum < 1 || static_cast<std::size_t>(serverNum) > serversList.size()) {
+        throw std::out_of_range("Invalid server number");
+    }
     std::string serverName = serversList[serverNum - 1];
 
     try {
@@ -78,13 +92,3 @@ void ServerManager::deleteServer(int serverNum) {
     serversList.erase(serversList.begin() + serverNum - 1);
     saveList();
 }
-
-/*
-void ServerManager::resizeList() {
-    for (size_t i = 0; i < serversList.size() - 1; i++) {
-        if (serversList[i].empty()) {
-            serversList[i] = serversList[i++];
-        }
-    }
-}
-*/

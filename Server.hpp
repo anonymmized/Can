@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <filesystem>
 
 struct LinkData {
     std::string protocol;
@@ -25,7 +26,8 @@ const std::string LIST_PATH = "./data/list.txt";
 class ServerManager {
     private:
         std::vector<std::string> serversList;
-
+        bool listCreated(const std::filesystem::path& listPath);
+        void createList(const std::filesystem::path& listPath);
         void loadList();
         void saveList();
 
