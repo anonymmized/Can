@@ -1,0 +1,10 @@
+/build/
+/cmake-build-*/
+*.0
+*.a
+*.so
+*.dylib
+*.exe
+/can
+/data/
+.DS_Store
