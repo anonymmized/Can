@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include "ServerManager.hpp"
+#include "XrayConfigBuilder.hpp"
 
 int main(int argc, char** argv) {
     try {
@@ -19,7 +20,14 @@ int main(int argc, char** argv) {
             std::cout << "Port: " << server.linkData.port << '\n';
             std::cout << "Security: " << server.linkData.security << '\n';
             std::cout << "Transport: " << server.linkData.transport << '\n';
-        } else {
+        } else if (argc == 3 && std::string(argv[1]) == "config") {
+            Server targetServer = serverManager.getServer(std::stoi(argv[2]));
+            XrayConfigBuilder builder;
+            XrayRuntimeOptions options;
+            nlohmann::json config = builder.build(targetServer, options);
+            std::cout << config.dump(4) << '\n';
+        }
+        else {
             std::cerr << "Unknown command\n";
             return 1;
         }

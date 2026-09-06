@@ -3,5 +3,6 @@ project(Can LANGUAGES CXX)
 add_executable(can 
     can.cpp 
     ServerManager.cpp 
-    LinkParser.cpp)
+    LinkParser.cpp
+    XrayConfigBuilder.cpp)
 target_compile_features(can PRIVATE cxx_std_17)

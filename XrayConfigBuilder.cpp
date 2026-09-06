@@ -23,7 +23,7 @@ nlohmann::json XrayConfigBuilder::buildOutbound(const LinkData& linkData) const 
         throw std::invalid_argument("Only TCP/raw transport is currently supported");
     }
     if (linkData.security != "reality") {
-        throw std::invalid_argument("Only REALITY escurity is currently supported");
+        throw std::invalid_argument("Only REALITY security is currently supported");
     }
     nlohmann::json vlessSettings = {
         {"address", linkData.host},
@@ -58,7 +58,7 @@ nlohmann::json XrayConfigBuilder::build(const Server& server, const XrayRuntimeO
     validate(server);
 
     return {
-        {"log", {"loglevel", options.logLevel}},
+        {"log", {{"loglevel", options.logLevel}}},
         {"inbounds", nlohmann::json::array({buildInbound(options)})},
         {"outbounds", nlohmann::json::array({buildOutbound(server.linkData)})}
     };
