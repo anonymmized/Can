@@ -1,0 +1,88 @@
+#include "XrayConfigBuilder.hpp"
+
+#include <stdexcept>
+
+nlohmann::json XrayConfigBuilder::buildInbound(const XrayRuntimeOptions& options) const {
+    if (options.listenAddress.empty()) {
+        throw std::invalid_argument("Inbound listen address is empty");
+    } 
+    if (options.socksPort == 0) {
+        throw std::invalid_argument("Inbound SOCKS port cannot be 0");
+    }
+    return {
+        {"tag", "socks-in"},
+        {"listen", options.listenAddress},
+        {"port", options.socksPort},
+        {"protocol", "socks"},
+        {"settings", {{"auth", "noauth"}, {"udp", false}}}
+    };
+}
+
+nlohmann::json XrayConfigBuilder::buildOutbound(const LinkData& linkData) const {
+    if (linkData.transport != "tcp" && linkData.transport != "raw") {
+        throw std::invalid_argument("Only TCP/raw transport is currently supported");
+    }
+    if (linkData.security != "reality") {
+        throw std::invalid_argument("Only REALITY escurity is currently supported");
+    }
+    nlohmann::json vlessSettings = {
+        {"address", linkData.host},
+        {"port", linkData.port},
+        {"id", linkData.uuid},
+        {"encryption", linkData.encryption.empty() ? "none" : linkData.encryption},
+        {"level", 0}
+    };
+    if (!linkData.flow.empty()) {
+        vlessSettings["flow"] = linkData.flow;
+    }
+    nlohmann::json realitySettings = {
+        {"serverName", linkData.sni},
+        {"fingerprint", linkData.fingerprint.empty() ? "chrome" : linkData.fingerprint},
+        {"password", linkData.publicKey},
+        {"shortId", linkData.shortId},
+        {"spiderX", ""}
+    };
+    return {
+        {"tag", "proxy"},
+        {"protocol", "vless"},
+        {"settings", std::move(vlessSettings)},
+        {"streamSettings", {
+            {"method", "raw"},
+            {"security", "reality"},
+            {"realitySettings", std::move(realitySettings)}
+        }}
+    };
+}
+
+nlohmann::json XrayConfigBuilder::build(const Server& server, const XrayRuntimeOptions& options) const {
+    validate(server);
+
+    return {
+        {"log", {"loglevel", options.logLevel}},
+        {"inbounds", nlohmann::json::array({buildInbound(options)})},
+        {"outbounds", nlohmann::json::array({buildOutbound(server.linkData)})}
+    };
+}
+
+void XrayConfigBuilder::validate(const Server& server) const {
+    const LinkData& data = server.linkData;
+    if (data.uuid.empty()) {
+        throw std::invalid_argument("UUID is empty");
+    }
+
+    if (data.host.empty()) {
+        throw std::invalid_argument("Server host is empty");
+    }
+
+    if (data.port == 0) {
+        throw std::invalid_argument("Server port cannot be 0");
+    }
+
+    if (data.sni.empty()) {
+        throw std::invalid_argument("REALITY SNI is empty");
+    }
+
+    if (data.publicKey.empty()) {
+        throw std::invalid_argument("REALITY public key is empty");
+    }
+}
