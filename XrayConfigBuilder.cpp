@@ -25,32 +25,37 @@ nlohmann::json XrayConfigBuilder::buildOutbound(const LinkData& linkData) const 
     if (linkData.security != "reality") {
         throw std::invalid_argument("Only REALITY security is currently supported");
     }
-    nlohmann::json vlessSettings = {
-        {"address", linkData.host},
-        {"port", linkData.port},
+    nlohmann::json userSettings = {
         {"id", linkData.uuid},
-        {"encryption", linkData.encryption.empty() ? "none" : linkData.encryption},
-        {"level", 0}
+        {"encryption", linkData.encryption.empty() ? "none" : linkData.encryption}
     };
     if (!linkData.flow.empty()) {
-        vlessSettings["flow"] = linkData.flow;
+        userSettings["flow"] = linkData.flow;
     }
+    nlohmann::json serverSettings = {
+        {"address", linkData.host},
+        {"port", linkData.port},
+        {"users", nlohmann::json::array({std::move(userSettings)})}
+    };
+    nlohmann::json vlessSettings = {
+        {"vnext", nlohmann::json::array({std::move(serverSettings)})}
+    };
     nlohmann::json realitySettings = {
-        {"serverName", linkData.sni},
         {"fingerprint", linkData.fingerprint.empty() ? "chrome" : linkData.fingerprint},
-        {"password", linkData.publicKey},
+        {"publicKey", linkData.publicKey},
+        {"serverName", linkData.sni},
         {"shortId", linkData.shortId},
         {"spiderX", ""}
     };
     return {
-        {"tag", "proxy"},
         {"protocol", "vless"},
         {"settings", std::move(vlessSettings)},
         {"streamSettings", {
-            {"method", "raw"},
+            {"network", "tcp"},
             {"security", "reality"},
             {"realitySettings", std::move(realitySettings)}
-        }}
+        }},
+        {"tag", "proxy"}
     };
 }
 

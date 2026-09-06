@@ -4,5 +4,6 @@ add_executable(can
     can.cpp 
     ServerManager.cpp 
     LinkParser.cpp
-    XrayConfigBuilder.cpp)
+    XrayConfigBuilder.cpp
+    XrayProcess.cpp)
 target_compile_features(can PRIVATE cxx_std_17)

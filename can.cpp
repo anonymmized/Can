@@ -2,6 +2,7 @@
 #include <string>
 #include "ServerManager.hpp"
 #include "XrayConfigBuilder.hpp"
+#include "XrayProcess.hpp"
 
 int main(int argc, char** argv) {
     try {
@@ -26,6 +27,12 @@ int main(int argc, char** argv) {
             XrayRuntimeOptions options;
             nlohmann::json config = builder.build(targetServer, options);
             std::cout << config.dump(4) << '\n';
+        } else if (argc == 3 && std::string(argv[1]) == "connect") {
+            Server server = serverManager.getServer(std::stoi(argv[2]));
+            XrayConfigBuilder builder;
+            XrayRuntimeOptions options;
+            XrayProcess process;
+            return process.run(builder.build(server, options));
         }
         else {
             std::cerr << "Unknown command\n";
