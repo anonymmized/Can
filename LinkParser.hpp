@@ -2,6 +2,7 @@
 
 #include "LinkData.hpp"
 #include <string>
+#include <optional>
 
 const std::string PREFIX = "vless://";
 

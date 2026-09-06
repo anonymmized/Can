@@ -21,11 +21,11 @@ class ServerManager {
         void createList(const std::filesystem::path& listPath);
         void loadList();
         void saveList();
+        LinkData parseLink(const std::string& bareLink);
 
     public:
         void addServer(const std::string& serverName, const std::string& bareLink);
         void deleteServer(int serverNum);
         Server getServer(int serverNum);
         void listServers();
-        void printParsedLinkParts(const std::string& bareLink);
 };
