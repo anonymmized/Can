@@ -62,10 +62,31 @@ nlohmann::json XrayConfigBuilder::buildOutbound(const LinkData& linkData) const 
 nlohmann::json XrayConfigBuilder::build(const Server& server, const XrayRuntimeOptions& options) const {
     validate(server);
 
-    return {
+    nlohmann::json config = {
         {"log", {{"loglevel", options.logLevel}}},
         {"inbounds", nlohmann::json::array({buildInbound(options)})},
         {"outbounds", nlohmann::json::array({buildOutbound(server.linkData)})}
+    };
+    if (!options.outboundInterface.empty()) {
+        config["outbounds"][0]["streamSettings"]["sockopt"]["interface"] = options.outboundInterface;
+    }
+    return config;
+}
+
+nlohmann::json XrayConfigBuilder::buildTun(const Server& server, const XrayRuntimeOptions& options, const std::string& tunName) const {
+    validate(server);
+    if (tunName.empty() || options.outboundInterface.empty()) {
+        throw std::invalid_argument("TUN requires a name and a physical outbound interface");
+    }
+    auto outbound = buildOutbound(server.linkData);
+    outbound["streamSettings"]["sockopt"]["interface"] = options.outboundInterface;
+    return {
+        {"log", {{"loglevel", options.logLevel}}},
+        {"inbounds", nlohmann::json::array({{
+            {"tag", "tun-in"}, {"protocol", "tun"},
+            {"settings", {{"name", tunName}, {"MTU", 1500}, {"userLevel", 0}}}
+        }})},
+        {"outbounds", nlohmann::json::array({std::move(outbound)})}
     };
 }
 
