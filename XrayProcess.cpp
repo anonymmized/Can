@@ -145,7 +145,6 @@ int XrayProcess::run(const nlohmann::json& config, const XrayProcessHooks& hooks
     sigset_t emptyMask;
     sigemptyset(&emptyMask);
     checkSpawnResult(posix_spawnattr_setsigmask(&attributes.value, &emptyMask), "Couldn't reset child signal mask");
-    // A separate process group lets the parent restore the network BEFORE stopping Xray.
     checkSpawnResult(posix_spawnattr_setpgroup(&attributes.value, 0), "Couldn't configure process group");
     checkSpawnResult(posix_spawnattr_setflags(&attributes.value,
         POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETPGROUP),
