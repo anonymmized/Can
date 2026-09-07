@@ -1,4 +1,4 @@
-#include "Server.hpp"
+#include "ServerManager.hpp"
 
 #include <string>
 #include <vector>
@@ -51,20 +51,8 @@ void ServerManager::saveList() {
     }
 }
 
-void ServerManager::printParsedLinkParts(const std::string& bareLink) {
-    LinkData linkData = linkParser.getParsedLink(bareLink);
-    std::cout << "Uuid: " << linkData.uuid << '\n';
-    std::cout << "Host: " << linkData.host << '\n';
-    std::cout << "Port: " << linkData.port << '\n';
-    std::cout << "Encryption: " << linkData.encryption << '\n';
-    std::cout << "Flow: " << linkData.flow << '\n';
-    std::cout << "Security: " << linkData.security << '\n';
-    std::cout << "Sni: " << linkData.sni << '\n';
-    std::cout << "Fingerprint: " << linkData.fingerprint << '\n';
-    std::cout << "Public Key: " << linkData.publicKey << '\n';
-    std::cout << "Short ID: " << linkData.shortId << '\n';
-    std::cout << "Transport: " << linkData.transport << '\n';
-    std::cout << '\n' << bareLink << '\n';
+LinkData ServerManager::parseLink(const std::string& bareLink) {
+    return linkParser.getParsedLink(bareLink);
 }
 
 void ServerManager::listServers() {
@@ -79,12 +67,18 @@ void ServerManager::listServers() {
 }
 
 void ServerManager::addServer(const std::string& serverName, const std::string& bareLink) {
+    LinkData parsedLink = parseLink(bareLink);
+    loadList();
+    for (const auto& server : serversList) {
+        if (server == serverName) {
+            throw std::runtime_error("Server already exists");
+        }
+    }
     std::ofstream fileToCreate("data/" + serverName + ".txt", std::ios::trunc);
     if (!fileToCreate.is_open()) {
         throw std::runtime_error("Couldn't open list file to add server");
     }
-    fileToCreate << serverName << " - " << bareLink;
-    loadList();
+    fileToCreate << bareLink;
     serversList.push_back(serverName);
     saveList();
 }
@@ -95,16 +89,30 @@ void ServerManager::deleteServer(int serverNum) {
         throw std::out_of_range("Invalid server number");
     }
     std::string serverName = serversList[serverNum - 1];
-
-    try {
-        if (std::filesystem::remove("data/" + serverName + ".txt")) {
-            std::cout << "Server " << serverName << " removed\n";
-        } else {
-            std::cout << "Server don't found\n";
-        }
-    } catch (const std::filesystem::filesystem_error& error) {
-        std::cerr << "Error: " << error.what() << '\n';
+    std::filesystem::path serverPath = std::filesystem::path("data") / (serverName + ".txt");
+    if (!std::filesystem::remove(serverPath)) {
+        throw std::runtime_error("Server file not found");
     }
     serversList.erase(serversList.begin() + serverNum - 1);
     saveList();
+}
+
+Server ServerManager::getServer(int serverNum) {
+    loadList();
+    if (serverNum < 1 || static_cast<size_t>(serverNum) > serversList.size()) {
+        throw std::out_of_range("Invalid server number");
+    }
+    Server targetServer;
+    targetServer.serverName = serversList[serverNum - 1];
+    std::filesystem::path serverPath = std::filesystem::path("data") / (targetServer.serverName + ".txt");
+    std::ifstream targetServerFile(serverPath);
+    if (!targetServerFile.is_open()) {
+        throw std::runtime_error("Server file not found: " + serverPath.string());
+    }
+    std::string bareUrl;
+    if (!std::getline(targetServerFile, bareUrl)) {
+        throw std::runtime_error("Couldn't read server file: " + serverPath.string());
+    }
+    targetServer.linkData = linkParser.getParsedLink(bareUrl);
+    return targetServer;
 }

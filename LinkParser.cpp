@@ -76,6 +76,9 @@ std::optional<std::string> LinkParser::getParameter(const std::string& parameter
     }
     size_t parameterStart = markerPosition + marker.size();
     size_t parameterEnd = linkData.rawUrl.find_first_of("&#", parameterStart);
+    if (parameterEnd == std::string::npos) {
+        parameterEnd = linkData.rawUrl.size();
+    }
     if (parameterEnd == parameterStart) {
         throw std::invalid_argument("Parameter '" + parameterName + "' is empty");
     }
