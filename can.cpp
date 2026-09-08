@@ -8,6 +8,39 @@
 #include "SystemCommand.hpp"
 #include "TunManager.hpp"
 
+int runConnection(Server server, ConnectionOptions options) {
+    XrayConfigBuilder configBuilder;
+    const auto executable = findExecutable(options.executable);
+    if (options.tun) {
+        TunManager tunManager;
+        if (options.check) {
+            const auto plan = tunManager.inspect(server, options.runtime.outboundInterface);
+            auto runtime = options.runtime;
+            runtime.outboundInterface = plan.outboundInterface;
+            server.linkData.host = plan.serverAddress;
+            configBuilder.buildTun(server, runtime, plan.tunInterface);
+            std::cout << "TUN preflight passed. No network settings were changed.\n"
+                        << "Xray: " << executable << '\n'
+                        << "TUN: " << plan.tunInterface << '\n'
+                        << "Outbound interface: " << plan.outboundInterface << '\n'
+                        << "Server IP: " << plan.serverAddress << '\n';
+            return 0;
+        }
+        return tunManager.run(server, options.runtime, executable);
+    }
+    if (options.runtime.outboundInterface.empty()) {
+        options.runtime.outboundInterface = TunManager().socksOutboundInterface();
+    }
+    const auto config = configBuilder.build(server, options.runtime);
+    requireFreeSocksPort(options.runtime);
+    std::cout << "Starting SOCKS proxy at " << options.runtime.listenAddress << ':'
+                 << options.runtime.socksPort << ". This is not system TUN mode.\n" << std::flush;
+    if (!options.runtime.outboundInterface.empty()) {
+        std::cout << "Outbound interface: " << options.runtime.outboundInterface << '\n' << std::flush;
+    }
+    return XrayProcess().run(config, {}, executable);
+}
+
 int main(int argc, char** argv) {
     try {
         if (argc == 1 || (argc == 2 && (std::string(argv[1]) == "--help" || std::string(argv[1]) == "help"))) {
@@ -42,35 +75,7 @@ int main(int argc, char** argv) {
                 std::cout << config.dump(4) << '\n';
                 return 0;
             }
-            const auto executable = findExecutable(options.executable);
-            if (options.tun) {
-                TunManager manager;
-                if (options.check) {
-                    const auto plan = manager.inspect(server, options.runtime.outboundInterface);
-                    auto runtime = options.runtime;
-                    runtime.outboundInterface = plan.outboundInterface;
-                    server.linkData.host = plan.serverAddress;
-                    builder.buildTun(server, runtime, plan.tunInterface);
-                    std::cout << "TUN preflight passed. No network settings were changed.\n"
-                              << "Xray: " << executable << '\n'
-                              << "TUN: " << plan.tunInterface << '\n'
-                              << "Outbound interface: " << plan.outboundInterface << '\n'
-                              << "Server IP: " << plan.serverAddress << '\n';
-                    return 0;
-                }
-                return manager.run(server, options.runtime, executable);
-            }
-            if (options.runtime.outboundInterface.empty()) {
-                options.runtime.outboundInterface = TunManager().socksOutboundInterface();
-            }
-            const auto config = builder.build(server, options.runtime);
-            requireFreeSocksPort(options.runtime);
-            std::cout << "Starting SOCKS proxy at " << options.runtime.listenAddress << ':'
-                      << options.runtime.socksPort << ". This is not system TUN mode.\n" << std::flush;
-            if (!options.runtime.outboundInterface.empty()) {
-                std::cout << "Outbound interface: " << options.runtime.outboundInterface << '\n' << std::flush;
-            }
-            return XrayProcess().run(config, {}, executable);
+            return runConnection(server, options);
         }
         else {
             std::cerr << "Unknown command or invalid arguments. Use can --help.\n";

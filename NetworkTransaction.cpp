@@ -4,8 +4,7 @@
 #include <stdexcept>
 #include <utility>
 
-void NetworkTransaction::apply(std::string name, const std::function<void()>& action,
-                               std::function<void()> undo) {
+void NetworkTransaction::apply(std::string name, const std::function<void()>& action, std::function<void()> undo) {
     steps.push_back({std::move(name), std::move(undo), false});
     action();
     steps.back().applied = true;
