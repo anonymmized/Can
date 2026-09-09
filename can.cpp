@@ -1,6 +1,10 @@
 #include <iostream>
 #include <string>
 #include <cstdlib>
+#include <unistd.h>
+#include <fcntl.h>
+#include <cerrno>
+#include <system_error>
 #include "ServerManager.hpp"
 #include "XrayConfigBuilder.hpp"
 #include "XrayProcess.hpp"
@@ -74,6 +78,50 @@ int main(int argc, char** argv) {
                     : builder.build(server, options.runtime);
                 std::cout << config.dump(4) << '\n';
                 return 0;
+            }
+            return runConnection(server, options);
+        } else if (argc >= 3 && std::string(argv[1]) == "quickrun") {
+            auto options = parseConnectionOptions(std::vector<std::string>(argv + 3, argv + argc));
+            Server server = serverManager.getServer(parseServerNumber(argv[2]));
+            if (options.check) {
+                throw std::invalid_argument("Use connect --tun --check");
+            }
+            char logPath[] = "/var/log/can-XXXXXX";
+            const int logFd = ::mkstemp(logPath);
+            if (logFd == -1) {
+                throw std::system_error(errno, std::generic_category(), "Create log");
+            }
+            std::cout.flush();
+            std::cerr.flush();
+            const pid_t pid = ::fork();
+            if (pid == -1) {
+                const int error = errno;
+                ::close(logFd);
+                throw std::system_error(error, std::generic_category(), "Create log");
+            }
+            if (pid > 0) {
+                ::close(logFd);
+                std::cout << "Background process created. PID: " << pid << "\nLog: " << logPath << '\n';
+                return 0;
+            }
+            if (::dup2(logFd, STDOUT_FILENO) == -1 || ::dup2(logFd, STDERR_FILENO) == -1) {
+                throw std::system_error(errno, std::generic_category(), "Redirect log");
+            }
+            if (logFd > STDERR_FILENO) {
+                ::close(logFd);
+            }
+            if (::setsid() == -1) {
+                throw std::system_error(error, std::generic_category(), "setsid");
+            }
+            const int inputFd = ::open("/dev/null", O_RDONLY);
+            if (inputFd == -1) {
+                throw std::system_error(errno, std::generic_category(), "Open stdin");
+            }
+            if (::dup2(inputFd, STDIN_FILENO) == -1) {
+                throw std::system_error(errno, std::generic_category(), "Redirect stdin");
+            }
+            if (inputFd != STDIN_FILENO) {
+                ::close(inputFd);
             }
             return runConnection(server, options);
         }
