@@ -7,6 +7,19 @@
 #include <filesystem>
 #include <stdexcept>
 
+namespace {
+void validateServerName(const std::string& name) {
+    if (name.empty() || name.size() > 128 || name == "." || name == "..") {
+        throw std::invalid_argument("Invalid server name");
+    }
+    for (unsigned char character : name) {
+        if (character < 32 || character == 127 || character == '/' || character == '\\') {
+            throw std::invalid_argument("Server name must not contain path separators or control characters");
+        }
+    }
+}
+}
+
 bool ServerManager::listCreated(const std::filesystem::path& listPath) {
     return std::filesystem::is_regular_file(listPath);
 }
@@ -33,6 +46,9 @@ void ServerManager::loadList() {
 
     std::string line;
     while (std::getline(fileWithList, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.empty()) continue;
+        validateServerName(line);
         serversList.push_back(line);
     }
 
@@ -49,6 +65,8 @@ void ServerManager::saveList() {
     for (const auto& server : serversList) {
         fileToSave << server << '\n';
     }
+    fileToSave.close();
+    if (!fileToSave) throw std::runtime_error("Couldn't finish writing the server list");
 }
 
 LinkData ServerManager::parseLink(const std::string& bareLink) {
@@ -67,18 +85,25 @@ void ServerManager::listServers() {
 }
 
 void ServerManager::addServer(const std::string& serverName, const std::string& bareLink) {
-    LinkData parsedLink = parseLink(bareLink);
+    validateServerName(serverName);
+    parseLink(bareLink);
     loadList();
     for (const auto& server : serversList) {
         if (server == serverName) {
             throw std::runtime_error("Server already exists");
         }
     }
-    std::ofstream fileToCreate("data/" + serverName + ".txt", std::ios::trunc);
+    const auto serverPath = std::filesystem::path("data") / (serverName + ".txt");
+    if (std::filesystem::exists(serverPath) || std::filesystem::is_symlink(serverPath)) {
+        throw std::runtime_error("Server file already exists: " + serverPath.string());
+    }
+    std::ofstream fileToCreate(serverPath);
     if (!fileToCreate.is_open()) {
         throw std::runtime_error("Couldn't open list file to add server");
     }
     fileToCreate << bareLink;
+    fileToCreate.close();
+    if (!fileToCreate) throw std::runtime_error("Couldn't finish writing the server file");
     serversList.push_back(serverName);
     saveList();
 }

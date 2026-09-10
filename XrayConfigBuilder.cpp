@@ -14,7 +14,7 @@ nlohmann::json XrayConfigBuilder::buildInbound(const XrayRuntimeOptions& options
         {"listen", options.listenAddress},
         {"port", options.socksPort},
         {"protocol", "socks"},
-        {"settings", {{"auth", "noauth"}, {"udp", false}}}
+        {"settings", {{"auth", "noauth"}, {"udp", true}}}
     };
 }
 
@@ -78,7 +78,9 @@ nlohmann::json XrayConfigBuilder::buildTun(const Server& server, const XrayRunti
     if (tunName.empty() || options.outboundInterface.empty()) {
         throw std::invalid_argument("TUN requires a name and a physical outbound interface");
     }
-    auto outbound = buildOutbound(server.linkData);
+    auto tunData = server.linkData;
+    if (tunData.flow == "xtls-rprx-vision") tunData.flow = "xtls-rprx-vision-udp443";
+    auto outbound = buildOutbound(tunData);
     outbound["streamSettings"]["sockopt"]["interface"] = options.outboundInterface;
     return {
         {"log", {{"loglevel", options.logLevel}}},
