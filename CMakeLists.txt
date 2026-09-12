@@ -10,7 +10,8 @@ add_library(can_core
     CliOptions.cpp
     SystemCommand.cpp
     NetworkTransaction.cpp
-    TunManager.cpp)
+    TunManager.cpp
+    BackgroundSession.cpp)
 target_compile_features(can_core PUBLIC cxx_std_17)
 target_include_directories(can_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(can_core PUBLIC nlohmann_json::nlohmann_json Threads::Threads)

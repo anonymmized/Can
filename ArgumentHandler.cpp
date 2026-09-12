@@ -1,4 +1,5 @@
 #include "ArgumentHandler.hpp"
+#include "BackgroundSession.hpp"
 #include "XrayConfigBuilder.hpp"
 #include "XrayProcess.hpp"
 #include "CliOptions.hpp"
@@ -140,5 +141,9 @@ int ArgumentHandler::handleQuickrun() {
 }
 
 int ArgumentHandler::handleStatus() {
-
+    if (argc != 2) {
+        throw std::invalid_argument("Usage: can status");
+    }
+    std::cout << BackgroundSession::status();
+    return 0;
 }

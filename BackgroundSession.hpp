@@ -17,16 +17,18 @@ class BackgroundSession {
         bool tunOrSocks;
         std::filesystem::path pathToLog;
         int sessionFd = -1;
+        void validateAndLockSessionFile();
         void checkSessionFile();
+        void lockSessionFile();
+        void writeInitialState();
     public:
         BackgroundSession(std::string _serverName, bool _tunOrSocks, std::filesystem::path _pathToLog) : serverName(_serverName), tunOrSocks(_tunOrSocks), pathToLog(_pathToLog) {
-            checkSessionFile();
             backgroundCanPid = getpid();
             sessionFd = open(pathToSession.c_str(), O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
             if (sessionFd == -1) {
                 throw std::system_error(errno, std::generic_category(), "Cannot open session file");
             }
-            checkSessionFile();
+            validateAndLockSessionFile();
         }
         BackgroundSession(const BackgroundSession&) = delete;
         BackgroundSession& operator=(const BackgroundSession&) = delete;
@@ -35,4 +37,5 @@ class BackgroundSession {
                 close(sessionFd);
             }
         }
+        static std::string status();
 };
