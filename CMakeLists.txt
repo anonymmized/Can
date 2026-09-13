@@ -12,6 +12,7 @@ add_library(can_core
     NetworkTransaction.cpp
     TunManager.cpp
     ArgumentHandler.cpp
+    StatusRenderer.cpp
     BackgroundLauncher.cpp
     BackgroundSession.cpp)
 target_compile_features(can_core PUBLIC cxx_std_17)
@@ -25,6 +26,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
 endif()
 add_executable(can can.cpp)
 target_link_libraries(can PRIVATE can_core)
+install(TARGETS can RUNTIME DESTINATION bin)
 include(CTest)
 if(BUILD_TESTING)
     add_executable(can_tests tests/CanTests.cpp)

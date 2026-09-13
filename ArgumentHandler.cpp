@@ -1,5 +1,6 @@
 #include "ArgumentHandler.hpp"
 #include "BackgroundLauncher.hpp"
+#include "StatusRenderer.hpp"
 #include "BackgroundSession.hpp"
 #include "XrayConfigBuilder.hpp"
 #include "XrayProcess.hpp"
@@ -153,7 +154,8 @@ int ArgumentHandler::handleStatus() {
     }
     if (::geteuid() != 0)
         throw std::runtime_error("Background sessions are owned by root. Use sudo can status.");
-    std::cout << BackgroundSession::status();
+    const bool color = ::isatty(STDOUT_FILENO) != 0;
+    std::cout << StatusRenderer::render(BackgroundSession::status(), color);
     return 0;
 }
 
