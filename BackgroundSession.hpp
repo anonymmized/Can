@@ -1,51 +1,29 @@
 #pragma once
-
-#include <string>
+#include <chrono>
 #include <filesystem>
-#include <sys/types.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <cerrno>
-#include <system_error>
+#include <functional>
+#include <string>
 
 class BackgroundSession {
-    private:
-        inline static const std::string pathToSession = "/var/run/can.session";
-        inline static BackgroundSession* activeSession = nullptr;
-        bool needToStop = false;
-        pid_t backgroundCanPid = -1;
-        std::string serverName;
-        bool tunOrSocks;
-        std::filesystem::path pathToLog;
-        int sessionFd = -1;
-        void validateAndLockSessionFile();
-        void checkSessionFile();
-        void lockSessionFile();
-        void writeInitialState();
-    public:
-        BackgroundSession(std::string _serverName, bool _tunOrSocks, std::filesystem::path _pathToLog) : serverName(_serverName), tunOrSocks(_tunOrSocks), pathToLog(_pathToLog) {
-            if (activeSession != nullptr) {
-                throw std::runtime_error("Background session already registered");
-            }
-            backgroundCanPid = getpid();
-            sessionFd = open(pathToSession.c_str(), O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
-            if (sessionFd == -1) {
-                throw std::system_error(errno, std::generic_category(), "Cannot open session file");
-            }
-            validateAndLockSessionFile();
-            activeSession = this;
-        }
-        BackgroundSession(const BackgroundSession&) = delete;
-        BackgroundSession& operator=(const BackgroundSession&) = delete;
-        ~BackgroundSession() {
-            if (activeSession == this) {
-                activeSession = nullptr;
-            }
-            if (sessionFd != -1) {
-                close(sessionFd);
-            }
-        }
-        static std::string status();
-        static bool hasStopRequest() noexcept;
-        static void requestStop();
+    inline static BackgroundSession* activeSession = nullptr;
+    int sessionFd = -1;
+    bool needToStop = false;
+    bool ready = false;
+    std::filesystem::path sessionPath;
+    std::string description;
+    std::function<void()> onReady;
+public:
+    static std::filesystem::path defaultPath();
+    BackgroundSession(const std::string& serverName, bool tun,
+                      const std::filesystem::path& logPath,
+                      const std::filesystem::path& path = defaultPath(),
+                      std::function<void()> readyCallback = {});
+    BackgroundSession(const BackgroundSession&) = delete;
+    BackgroundSession& operator=(const BackgroundSession&) = delete;
+    ~BackgroundSession();
+    static std::string status(const std::filesystem::path& path = defaultPath());
+    static bool hasStopRequest() noexcept;
+    static void markReady();
+    static void requestStop(const std::filesystem::path& path = defaultPath(),
+                            std::chrono::milliseconds timeout = std::chrono::seconds(15));
 };

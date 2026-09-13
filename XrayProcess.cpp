@@ -178,9 +178,10 @@ int XrayProcess::run(const nlohmann::json& config, const XrayProcessHooks& hooks
             if (!activated) {
                 if (!hooks.ready || hooks.ready()) {
                     if (hooks.onReady) hooks.onReady();
+                    BackgroundSession::markReady();
                     activated = true;
                 } else if (std::chrono::steady_clock::now() >= deadline) {
-                    throw std::runtime_error("Xray did not create a usable TUN interface within 10 seconds");
+                    throw std::runtime_error("Xray did not become ready within 10 seconds");
                 }
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(50));

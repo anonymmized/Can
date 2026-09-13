@@ -313,6 +313,9 @@ int main(int argc, char** argv) {
         ::getsockname(socket, reinterpret_cast<sockaddr*>(&address), &length);
         XrayRuntimeOptions options;
         options.socksPort = ntohs(address.sin_port);
+        expect(!socksListenerReady(options), "bound socket is not yet listening");
+        expect(::listen(socket, 1) == 0, "listen");
+        expect(socksListenerReady(options), "listening socket is ready");
         bool rejected = false;
         try { requireFreeSocksPort(options); } catch (const std::exception&) { rejected = true; }
         ::close(socket);

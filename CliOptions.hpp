@@ -15,4 +15,5 @@ struct ConnectionOptions {
 int parseServerNumber(const std::string& text);
 ConnectionOptions parseConnectionOptions(const std::vector<std::string>& arguments);
 void requireFreeSocksPort(const XrayRuntimeOptions& options);
+bool socksListenerReady(const XrayRuntimeOptions& options);
 void printUsage();

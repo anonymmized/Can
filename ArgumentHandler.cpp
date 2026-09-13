@@ -1,4 +1,5 @@
 #include "ArgumentHandler.hpp"
+#include "BackgroundLauncher.hpp"
 #include "BackgroundSession.hpp"
 #include "XrayConfigBuilder.hpp"
 #include "XrayProcess.hpp"
@@ -7,6 +8,7 @@
 #include "TunManager.hpp"
 
 #include <iostream>
+#include <unistd.h>
 
 int ArgumentHandler::run() {
     if (argc < 2) {
@@ -15,6 +17,8 @@ int ArgumentHandler::run() {
     static const std::unordered_map<std::string, Handler> commands {
         {"add", &ArgumentHandler::handleAdd},
         {"list", &ArgumentHandler::handleList},
+        {"show", &ArgumentHandler::handleShow},
+        {"delete", &ArgumentHandler::handleDelete},
         {"config", &ArgumentHandler::handleConfig},
         {"connect", &ArgumentHandler::handleConnect},
         {"quickrun", &ArgumentHandler::handleQuickrun},
@@ -33,7 +37,7 @@ int ArgumentHandler::run() {
 std::pair<Server, ConnectionOptions> ArgumentHandler::prepareServerAndOptions() {
     if (argc < 3) {
         handleHelp();
-        throw std::invalid_argument("Not enough arguments");
+        throw std::invalid_argument("A server number is required");
     }
     auto options = parseConnectionOptions(std::vector<std::string>(argv + 3, argv + argc));
     Server server = serverManager.getServer(parseServerNumber(argv[2]));
@@ -42,7 +46,7 @@ std::pair<Server, ConnectionOptions> ArgumentHandler::prepareServerAndOptions() 
 
 int ArgumentHandler::handleAdd() {
     if (argc != 4) {
-        throw std::invalid_argument("Not enough arguments");
+        throw std::invalid_argument("Usage: can add <name> '<vless-url>'");
     }
     serverManager.addServer(argv[2], argv[3]);
     return 0;
@@ -53,6 +57,23 @@ int ArgumentHandler::handleList() {
         throw std::invalid_argument("Usage: can list");
     }
     serverManager.listServers();
+    return 0;
+}
+
+int ArgumentHandler::handleShow() {
+    if (argc != 3) throw std::invalid_argument("Usage: can show <id>");
+    const auto server = serverManager.getServer(parseServerNumber(argv[2]));
+    std::cout << "Name: " << server.serverName << '\n'
+              << "Host: " << server.linkData.host << '\n'
+              << "Port: " << server.linkData.port << '\n'
+              << "Security: " << server.linkData.security << '\n'
+              << "Transport: " << server.linkData.transport << '\n';
+    return 0;
+}
+
+int ArgumentHandler::handleDelete() {
+    if (argc != 3) throw std::invalid_argument("Usage: can delete <id>");
+    serverManager.deleteServer(parseServerNumber(argv[2]));
     return 0;
 }
 
@@ -86,7 +107,9 @@ int ArgumentHandler::runConnection(Server server, ConnectionOptions options) {
     if (!options.runtime.outboundInterface.empty()) {
         std::cout << "Outbound interface:" << options.runtime.outboundInterface << '\n' << std::flush;
     }
-    return XrayProcess().run(config, {}, executable);
+    XrayProcessHooks hooks;
+    hooks.ready = [&] { return socksListenerReady(options.runtime); };
+    return XrayProcess().run(config, hooks, executable);
 }
 
 int ArgumentHandler::handleConfig() {
@@ -110,51 +133,26 @@ int ArgumentHandler::handleQuickrun() {
     if (options.check) {
         throw std::invalid_argument("Use connect --tun --check");
     }
-    char logPath[] = "/var/log/can-XXXXXX";
-    const int logFd = mkstemp(logPath);
-    if (logFd == -1) {
-        throw std::system_error(errno, std::generic_category(), "Create log");
-    }
-    std::cout.flush();
-    std::cerr.flush();
-    const pid_t pid = fork();
-    if (pid == -1) {
-        const int error = errno;
-        close(logFd);
-        throw std::system_error(error, std::generic_category(), "Create log");
-    }
-    if (pid > 0) {
-        close(logFd);
-        std::cout << "Background process created. PID: " << pid << "\nLog: " << logPath << '\n';
-        return 0;
-    }
-    if (dup2(logFd, STDOUT_FILENO) == -1 || dup2(logFd, STDERR_FILENO) == -1) {
-        throw std::system_error(errno, std::generic_category(), "Redirect log");
-    }
-    if (logFd > STDERR_FILENO) {
-        close(logFd);
-    }
-    if (setsid() == -1) {
-        throw std::system_error(errno, std::generic_category(), "setsid");
-    }
-    const int inputFd = ::open("/dev/null", O_RDONLY);
-    if (inputFd == -1) {
-        throw std::system_error(errno, std::generic_category(), "Open stdin");
-    }
-    if (dup2(inputFd, STDIN_FILENO) == -1) {
-        throw std::system_error(errno, std::generic_category(), "Redirect stdin");
-    }
-    if (inputFd != STDIN_FILENO) {
-        close(inputFd);
-    }
-    BackgroundSession session(server.serverName, options.tun, logPath);
-    return runConnection(server, options);
+    if (::geteuid() != 0)
+        throw std::runtime_error("quickrun uses /var/run and /var/log. Run it with sudo; use sudo for status and stop too.");
+    options.executable = findExecutable(options.executable);
+    const std::string message = options.tun ? "TUN started in background." :
+        "SOCKS proxy started in background. This is not system VPN mode; use --tun for that.";
+    return BackgroundLauncher::run("/var/log", message,
+        [this, server = server, options = options](const std::filesystem::path& logPath,
+                                                   const BackgroundLauncher::Ready& ready) {
+            BackgroundSession session(server.serverName, options.tun, logPath,
+                                      BackgroundSession::defaultPath(), ready);
+            return runConnection(server, options);
+        });
 }
 
 int ArgumentHandler::handleStatus() {
     if (argc != 2) {
         throw std::invalid_argument("Usage: can status");
     }
+    if (::geteuid() != 0)
+        throw std::runtime_error("Background sessions are owned by root. Use sudo can status.");
     std::cout << BackgroundSession::status();
     return 0;
 }
@@ -163,8 +161,10 @@ int ArgumentHandler::handleStop() {
     if (argc != 2) {
         throw std::invalid_argument("Usage: can stop");
     }
+    if (::geteuid() != 0)
+        throw std::runtime_error("Background sessions are owned by root. Use sudo can stop.");
     BackgroundSession::requestStop();
-    std::cout << "Stop requested\n";
+    std::cout << "Background session ended. Check its log for cleanup errors.\n";
     return 0;
 }
 

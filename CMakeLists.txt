@@ -12,6 +12,7 @@ add_library(can_core
     NetworkTransaction.cpp
     TunManager.cpp
     ArgumentHandler.cpp
+    BackgroundLauncher.cpp
     BackgroundSession.cpp)
 target_compile_features(can_core PUBLIC cxx_std_17)
 target_include_directories(can_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -30,4 +31,8 @@ if(BUILD_TESTING)
     target_link_libraries(can_tests PRIVATE can_core)
     add_test(NAME can_tests COMMAND can_tests)
     set_tests_properties(can_tests PROPERTIES TIMEOUT 30)
+    add_executable(can_background_tests tests/BackgroundTests.cpp)
+    target_link_libraries(can_background_tests PRIVATE can_core)
+    add_test(NAME can_background_tests COMMAND can_background_tests)
+    set_tests_properties(can_background_tests PROPERTIES TIMEOUT 30)
 endif()
