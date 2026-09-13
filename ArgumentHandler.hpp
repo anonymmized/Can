@@ -16,6 +16,8 @@ class ArgumentHandler {
         std::pair<Server, ConnectionOptions> prepareServerAndOptions();
         int handleAdd();
         int handleList();
+        int handleShow();
+        int handleDelete();
         int handleConfig();
         int handleConnect();
         int handleQuickrun();

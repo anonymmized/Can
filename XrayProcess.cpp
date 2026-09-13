@@ -1,4 +1,5 @@
 #include "XrayProcess.hpp"
+#include "BackgroundSession.hpp"
 
 #include <cerrno>
 #include <cstdio>
@@ -111,7 +112,12 @@ namespace {
     };
 }
 
-bool XrayProcess::stopRequested() { return pendingSignal != 0; }
+bool XrayProcess::stopRequested() { 
+    if (pendingSignal == 0 && BackgroundSession::hasStopRequest()) {
+        pendingSignal = SIGTERM;
+    }
+    return pendingSignal != 0;
+}
 
 int XrayProcess::run(const nlohmann::json& config, const XrayProcessHooks& hooks, const std::string& executable) const {
     const std::string content = config.dump(4);
@@ -172,9 +178,10 @@ int XrayProcess::run(const nlohmann::json& config, const XrayProcessHooks& hooks
             if (!activated) {
                 if (!hooks.ready || hooks.ready()) {
                     if (hooks.onReady) hooks.onReady();
+                    BackgroundSession::markReady();
                     activated = true;
                 } else if (std::chrono::steady_clock::now() >= deadline) {
-                    throw std::runtime_error("Xray did not create a usable TUN interface within 10 seconds");
+                    throw std::runtime_error("Xray did not become ready within 10 seconds");
                 }
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(50));

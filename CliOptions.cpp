@@ -4,9 +4,11 @@
 #include <cerrno>
 #include <charconv>
 #include <cstdlib>
+#include <fcntl.h>
 #include <iostream>
 #include <limits>
 #include <net/if.h>
+#include <poll.h>
 #include <stdexcept>
 #include <sys/socket.h>
 #include <system_error>
@@ -79,6 +81,28 @@ void requireFreeSocksPort(const XrayRuntimeOptions& options) {
     }
 }
 
+bool socksListenerReady(const XrayRuntimeOptions& options) {
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(options.socksPort);
+    const auto host = options.listenAddress == "0.0.0.0" ? "127.0.0.1" : options.listenAddress;
+    if (::inet_pton(AF_INET, host.c_str(), &address.sin_addr) != 1)
+        throw std::invalid_argument("SOCKS listen address must be an IPv4 address");
+    const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (fd == -1) throw std::system_error(errno, std::generic_category(), "Check SOCKS readiness");
+    struct Guard { int fd; ~Guard() { ::close(fd); } } guard{fd};
+    if (::fcntl(fd, F_SETFD, FD_CLOEXEC) == -1 || ::fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
+        throw std::system_error(errno, std::generic_category(), "Configure readiness socket");
+    if (::connect(fd, reinterpret_cast<sockaddr*>(&address), sizeof(address)) == 0) return true;
+    if (errno != EINPROGRESS) return false;
+    pollfd descriptor{fd, POLLOUT, 0};
+    const int result = ::poll(&descriptor, 1, 100);
+    if (result <= 0) return false;
+    int error = 0;
+    socklen_t length = sizeof(error);
+    return ::getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &length) == 0 && error == 0;
+}
+
 void printUsage() {
     std::cout <<
         "Usage:\n"
@@ -91,9 +115,15 @@ void printUsage() {
         "  can connect <id> [--interface <name>] [--port <number>]\n"
         "  can connect <id> --tun --check\n"
         "  sudo can connect <id> --tun\n"
-        "  can connect <id> [--tun] --xray /absolute/path/to/xray\n\n"
+        "  can connect <id> [--tun] --xray /absolute/path/to/xray\n"
+        "  sudo can quickrun <id> [--tun] [--xray /absolute/path/to/xray]\n"
+        "  sudo can status\n"
+        "  sudo can stop\n\n"
         "Default: local SOCKS proxy; applications must use its proxy address.\n"
         "--tun: system IPv4/IPv6 TCP/UDP tunnel on macOS; requires root and no other active VPN.\n"
         "--check: read-only TUN preflight, without changing routes or DNS.\n"
+        "quickrun waits for startup, then releases the terminal. Without --tun it is SOCKS only.\n"
+        "Background logs: /var/log/can-*. Session state: /var/run/can.session.\n"
+        "status reports session state, not Internet connectivity. stop waits for session shutdown.\n"
         "Ctrl+C stops the connection. Server files are stored in ./data.\n";
 }
