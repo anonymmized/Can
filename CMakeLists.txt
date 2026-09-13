@@ -11,6 +11,7 @@ add_library(can_core
     SystemCommand.cpp
     NetworkTransaction.cpp
     TunManager.cpp
+    ArgumentHandler.cpp
     BackgroundSession.cpp)
 target_compile_features(can_core PUBLIC cxx_std_17)
 target_include_directories(can_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

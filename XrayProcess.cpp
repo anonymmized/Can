@@ -1,4 +1,5 @@
 #include "XrayProcess.hpp"
+#include "BackgroundSession.hpp"
 
 #include <cerrno>
 #include <cstdio>
@@ -111,7 +112,12 @@ namespace {
     };
 }
 
-bool XrayProcess::stopRequested() { return pendingSignal != 0; }
+bool XrayProcess::stopRequested() { 
+    if (pendingSignal == 0 && BackgroundSession::hasStopRequest()) {
+        pendingSignal = SIGTERM;
+    }
+    return pendingSignal != 0;
+}
 
 int XrayProcess::run(const nlohmann::json& config, const XrayProcessHooks& hooks, const std::string& executable) const {
     const std::string content = config.dump(4);

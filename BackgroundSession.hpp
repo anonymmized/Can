@@ -10,7 +10,8 @@
 
 class BackgroundSession {
     private:
-        const std::string pathToSession = "/var/run/can.session";
+        inline static const std::string pathToSession = "/var/run/can.session";
+        inline static BackgroundSession* activeSession = nullptr;
         bool needToStop = false;
         pid_t backgroundCanPid = -1;
         std::string serverName;
@@ -23,19 +24,28 @@ class BackgroundSession {
         void writeInitialState();
     public:
         BackgroundSession(std::string _serverName, bool _tunOrSocks, std::filesystem::path _pathToLog) : serverName(_serverName), tunOrSocks(_tunOrSocks), pathToLog(_pathToLog) {
+            if (activeSession != nullptr) {
+                throw std::runtime_error("Background session already registered");
+            }
             backgroundCanPid = getpid();
             sessionFd = open(pathToSession.c_str(), O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
             if (sessionFd == -1) {
                 throw std::system_error(errno, std::generic_category(), "Cannot open session file");
             }
             validateAndLockSessionFile();
+            activeSession = this;
         }
         BackgroundSession(const BackgroundSession&) = delete;
         BackgroundSession& operator=(const BackgroundSession&) = delete;
         ~BackgroundSession() {
+            if (activeSession == this) {
+                activeSession = nullptr;
+            }
             if (sessionFd != -1) {
                 close(sessionFd);
             }
         }
         static std::string status();
+        static bool hasStopRequest() noexcept;
+        static void requestStop();
 };

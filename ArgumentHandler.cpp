@@ -6,6 +6,8 @@
 #include "SystemCommand.hpp"
 #include "TunManager.hpp"
 
+#include <iostream>
+
 int ArgumentHandler::run() {
     if (argc < 2) {
         return handleHelp();
@@ -31,7 +33,7 @@ int ArgumentHandler::run() {
 std::pair<Server, ConnectionOptions> ArgumentHandler::prepareServerAndOptions() {
     if (argc < 3) {
         handleHelp();
-        std::throw invalid_argument("Not enough arguments");
+        throw std::invalid_argument("Not enough arguments");
     }
     auto options = parseConnectionOptions(std::vector<std::string>(argv + 3, argv + argc));
     Server server = serverManager.getServer(parseServerNumber(argv[2]));
@@ -39,12 +41,19 @@ std::pair<Server, ConnectionOptions> ArgumentHandler::prepareServerAndOptions() 
 }
 
 int ArgumentHandler::handleAdd() {
-
-    serverManager.addServer(argv[1], argv[3]);
+    if (argc != 4) {
+        throw std::invalid_argument("Not enough arguments");
+    }
+    serverManager.addServer(argv[2], argv[3]);
+    return 0;
 }
 
 int ArgumentHandler::handleList() {
+    if (argc != 2) {
+        throw std::invalid_argument("Usage: can list");
+    }
     serverManager.listServers();
+    return 0;
 }
 
 int ArgumentHandler::runConnection(Server server, ConnectionOptions options) {
@@ -57,7 +66,7 @@ int ArgumentHandler::runConnection(Server server, ConnectionOptions options) {
             auto runtime = options.runtime;
             runtime.outboundInterface = plan.outboundInterface;
             server.linkData.host = plan.serverAddress;
-            configBuilder.buildTun(server, runtime, plan.tunManager);
+            configBuilder.buildTun(server, runtime, plan.tunInterface);
             std::cout << "TUN preflight passed. No network settings were changed.\n"
                       << "Xray: " << executable << '\n'
                       << "TUN: " << plan.tunInterface << '\n'
@@ -65,7 +74,7 @@ int ArgumentHandler::runConnection(Server server, ConnectionOptions options) {
                       << "Server IP: " << plan.serverAddress << '\n';
             return 0;
         }
-        return tunManager.run(server. options.runtime, executable);
+        return tunManager.run(server, options.runtime, executable);
     }
     if (options.runtime.outboundInterface.empty()) {
         options.runtime.outboundInterface = TunManager().socksOutboundInterface();
@@ -117,6 +126,7 @@ int ArgumentHandler::handleQuickrun() {
     if (pid > 0) {
         close(logFd);
         std::cout << "Background process created. PID: " << pid << "\nLog: " << logPath << '\n';
+        return 0;
     }
     if (dup2(logFd, STDOUT_FILENO) == -1 || dup2(logFd, STDERR_FILENO) == -1) {
         throw std::system_error(errno, std::generic_category(), "Redirect log");
@@ -125,7 +135,7 @@ int ArgumentHandler::handleQuickrun() {
         close(logFd);
     }
     if (setsid() == -1) {
-        throw std::system_error(error, std::generic_category(), "setsid");
+        throw std::system_error(errno, std::generic_category(), "setsid");
     }
     const int inputFd = ::open("/dev/null", O_RDONLY);
     if (inputFd == -1) {
@@ -137,6 +147,7 @@ int ArgumentHandler::handleQuickrun() {
     if (inputFd != STDIN_FILENO) {
         close(inputFd);
     }
+    BackgroundSession session(server.serverName, options.tun, logPath);
     return runConnection(server, options);
 }
 
@@ -145,5 +156,19 @@ int ArgumentHandler::handleStatus() {
         throw std::invalid_argument("Usage: can status");
     }
     std::cout << BackgroundSession::status();
+    return 0;
+}
+
+int ArgumentHandler::handleStop() {
+    if (argc != 2) {
+        throw std::invalid_argument("Usage: can stop");
+    }
+    BackgroundSession::requestStop();
+    std::cout << "Stop requested\n";
+    return 0;
+}
+
+int ArgumentHandler::handleHelp() {
+    printUsage();
     return 0;
 }
