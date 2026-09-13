@@ -1,79 +1,121 @@
-# Can
+<p align="center">
+  <img src="assets/can-logo.png" width="180" alt="Can logo">
+</p>
 
-Терминальный клиент VLESS + REALITY поверх Xray. Поддерживается TCP/raw с `xtls-rprx-vision` или без `flow`.
+<h1 align="center">Can</h1>
 
-## Сборка
+<p align="center">A small, safety-focused VLESS + REALITY client for Xray.</p>
+<p align="center"><code>SOCKS5</code> proxy · macOS <code>TUN</code> tunnel · background sessions</p>
 
-Нужны CMake, компилятор C++17, nlohmann-json и установленный Xray с поддержкой TUN на macOS. Конфигурация TUN рассчитана на поля Xray 26.3.27; новые поля автоматической маршрутизации не используются.
+Can turns a VLESS link into a validated Xray configuration and manages the Xray process for you. It stores server entries locally, checks startup before changing routes, and restores macOS networking when a TUN session stops.
+
+## Features
+
+- Strict VLESS URL parsing and validation.
+- Xray JSON generation for TCP/raw + REALITY.
+- Local SOCKS5 mode for selected applications.
+- macOS TUN mode for system-wide TCP, UDP, IPv4, IPv6 and DNS traffic.
+- Background `quickrun`, styled `status`, and cooperative `stop`.
+- Secure temporary configs, private session state, process cleanup and tests.
+
+## Requirements
+
+- macOS for `--tun`; SOCKS mode also works on Linux.
+- C++17 compiler, CMake 3.16+, and `nlohmann-json`.
+- Xray available as `xray` or supplied with `--xray`.
+
+## Build and install
 
 ```sh
 cmake -S . -B build
 cmake --build build -j 4
 ctest --test-dir build --output-on-failure
+cmake --install build --prefix ~/.local
 ```
 
-## Серверы
+If `~/.local/bin` is in `PATH`, the executable is simply `can`.
 
-Запускай команды из корня проекта: сохранённые ссылки находятся в `./data` и не попадают в Git.
+## Manage servers
+
+Run commands from the project directory because server data is stored in `./data`.
 
 ```sh
-./build/can add my_server 'vless://UUID@HOST:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=SNI&fp=firefox&pbk=PUBLIC_KEY&sid=SHORT_ID&type=tcp'
-./build/can list
-./build/can show 1
-./build/can config 1
-./build/can delete 1
+can add riga 'vless://UUID@HOST:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=SNI&fp=firefox&pbk=PUBLIC_KEY&sid=SHORT_ID&type=tcp#Riga'
+can list
+can show 1
+can config 1
+can delete 1
 ```
 
-Подставь реальные данные своего сервера. `config` выводит конфигурацию с данными доступа — не публикуй её целиком.
+Saved links and generated configs contain credentials. Keep them private.
 
-## Системный туннель на macOS
+## SOCKS5 mode
 
-```sh
-./build/can connect 1 --tun --check
-sudo ./build/can connect 1 --tun
-```
-
-`--check` читает маршруты и проверяет параметры, но не создаёт TUN, не меняет DNS и не проверяет доступность сервера. Активный HAPP или другой VPN необходимо отключить самостоятельно перед системным режимом Can: два управляющих системной маршрутизацией клиента не запускаются одновременно.
-
-Перед изменением маршрутов Can проверяет HTTPS-соединение через Xray запросом к `https://api.ipify.org`. Если проверка не проходит, процесс останавливается без перенаправления системного трафика.
-
-После сообщения `TUN active` новые TCP/UDP-соединения приложений направляются через Xray, включая IPv4, IPv6 и DNS. Проверка выполняется без настройки прокси:
+SOCKS mode exposes a local proxy; it does not change the system default route.
 
 ```sh
-curl --noproxy '*' https://api.ipify.org
-```
-
-Браузер не требует настройки SOCKS. Уже открытые соединения могут потребовать перезапуска приложения. Более специфичные маршруты локальной сети сохраняются; программы, явно привязанные к физическому интерфейсу, могут обходить системный туннель.
-
-Can автоматически выбирает физический интерфейс текущего IPv4-маршрута. `en0` не зашит в программу. При `Ctrl+C`, `SIGTERM`, `SIGHUP`, ошибке запуска или завершении Xray выполняется очистка. Исходный default route не заменяется: создаются отдельные маршруты, привязанные к интерфейсу Can. DNS-серверы `1.1.1.1` и `9.9.9.9` задаются временной сессией macOS; постоянные настройки DNS не перезаписываются.
-
-Не используй `kill -9` для остановки Can: обработчик очистки не сможет выполниться, и дочерний Xray может остаться запущенным. Автоматического переподключения при смене Wi-Fi и kill switch пока нет. TUN-режим реализован только для macOS; на Linux доступен SOCKS-режим.
-
-Если `sudo` не находит Xray:
-
-```sh
-sudo ./build/can connect 1 --tun --xray /opt/homebrew/bin/xray
-```
-
-Путь можно также задать через `CAN_XRAY_BINARY`. Полный список параметров: `./build/can --help`.
-
-## SOCKS-режим
-
-```sh
-./build/can connect 1
+can connect 1
 curl --proxy socks5h://127.0.0.1:1080 https://api.ipify.org
 ```
 
-Это локальный прокси, а не переключение всей системы. На macOS при активном другом VPN Can выбирает единственный физический default route для собственного исходящего соединения. Если таких интерфейсов несколько, программа просит указать нужный явно:
+Use `--port 18081` for another port. Select a physical interface with `--interface en0` or `CAN_OUTBOUND_INTERFACE` when needed.
+
+## macOS TUN mode
+
+TUN mode routes normal applications through Xray. It requires root and cannot run while HAPP or another VPN owns the default route.
 
 ```sh
-./build/can connect 1 --interface en0
+can connect 1 --tun --check
+sudo can connect 1 --tun --xray /opt/homebrew/bin/xray
+curl --noproxy '*' https://api.ipify.org
 ```
 
-`CAN_OUTBOUND_INTERFACE` по-прежнему поддерживается. Занятый порт вызывает ошибку вместо запуска второго Xray на том же порту; для отдельного экземпляра можно указать `--port 18081`.
+`--check` is read-only. When `TUN active` appears, the tunnel is ready. Press `Ctrl+C` to stop and restore routes and temporary DNS settings. Do not use `kill -9`: cleanup handlers cannot run after a forced kill.
 
-## Проверки
+## Background mode
 
-Автотесты проверяют генерацию JSON, параметры CLI, отказ на занятом порту, порядок и повторный запуск отката, приватные временные файлы и завершение дочернего процесса при ошибках и сигналах. Они не меняют системные маршруты или DNS и не заменяют полноценную проверку TUN с отключённым HAPP.
+`quickrun` detaches from the terminal and writes Xray output to `/var/log`. Without `--tun` it is still only a SOCKS proxy.
 
-Формат TUN сверялся с [исходниками Xray 26.3.27](https://github.com/XTLS/Xray-core/blob/v26.3.27/infra/conf/tun.go). DNS использует [временные ключи SystemConfiguration](https://developer.apple.com/documentation/systemconfiguration/scdynamicstorecreatewithoptions(_:_:_:_:_:)).
+```sh
+sudo can quickrun 1 --tun
+sudo can status
+sudo can stop
+```
+
+The status screen shows the owner, mode, PID and log path. `status` does not test Internet connectivity. State is kept in `/var/run/can.session`; logs use `/var/log/can-*`.
+
+## Runtime options
+
+```text
+--tun                    Use the macOS system tunnel
+--check                  Validate TUN setup without changing networking
+--interface <name>       Physical outbound interface
+--port <number>          Local SOCKS port (SOCKS mode only)
+--xray <path>            Xray executable
+```
+
+```sh
+export CAN_XRAY_BINARY=/opt/homebrew/bin/xray
+export CAN_OUTBOUND_INTERFACE=en0
+```
+
+## Architecture
+
+```text
+VLESS URL → LinkParser → ServerManager → XrayConfigBuilder → XrayProcess
+                                                        ↘ TunManager (macOS)
+BackgroundLauncher ↔ BackgroundSession ↔ status / stop
+```
+
+`XrayProcess` owns the child Xray process and signals. `TunManager` performs route/DNS transactions with rollback. `BackgroundSession` uses a private state file and a separate update lock.
+
+## Limitations
+
+- TUN integration is macOS-specific.
+- No automatic reconnect or kill switch.
+- Applications explicitly bound to a physical interface may bypass TUN.
+- Valid VLESS/REALITY credentials are required for a real server test; tests never change routes or DNS.
+
+## License
+
+No license has been selected yet.
