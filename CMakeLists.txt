@@ -12,6 +12,7 @@ add_library(can_core
     NetworkTransaction.cpp
     TunManager.cpp
     ArgumentHandler.cpp
+    StatusRenderer.cpp
     BackgroundLauncher.cpp
     BackgroundSession.cpp)
 target_compile_features(can_core PUBLIC cxx_std_17)
